@@ -25,7 +25,6 @@ CREATE TABLE guild_memes (
     guild_id BIGINT NOT NULL,
     url TEXT NOT NULL,
     last_posted DATETIME,
-    submitter BIGINT,
     PRIMARY KEY (guild_id, url)
 );
 PRAGMA user_version=1;
