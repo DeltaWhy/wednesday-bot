@@ -5,7 +5,7 @@ import discord.ext.commands
 import os
 from typing import Union
 from .scheduler import Scheduler
-from .database import get_setting, set_setting, get_schedule, get_guild_meme, mark_guild_meme
+from .database import get_setting, set_setting, get_schedule, get_guild_meme, mark_guild_meme, add_global_meme
 
 
 bot = discord.ext.commands.Bot(command_prefix=discord.ext.commands.when_mentioned)
@@ -15,6 +15,9 @@ def check_guild(ctx):
     if not ctx.guild:
         raise discord.ext.commands.CommandError('This command may only be used in a channel.')
     return True
+
+def check_super_admin(ctx):
+    return ctx.author.id == int(os.environ['DISCORD_SUPER_ADMIN'])
 
 @bot.event
 async def on_ready():
@@ -108,6 +111,11 @@ async def mode(ctx, mode: str):
         await ctx.send('Mode set to Text')
     else:
         await ctx.send('Unknown mode.\nUsage: mode classic|variety|text')
+
+@bot.command()
+@discord.ext.commands.check(check_super_admin)
+async def add_global(ctx, url):
+    add_global_meme(url, approved=True, submitter=ctx.author.id)
 
 @bot.command()
 @discord.ext.commands.check(check_guild)

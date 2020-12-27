@@ -7,4 +7,4 @@ COPY . /app
 
 VOLUME /data
 ENV DB_FILE=/data/wednesday-bot.db
-CMD python main.py
+CMD python -u main.py
