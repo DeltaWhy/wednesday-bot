@@ -16,6 +16,43 @@ def check_guild(ctx):
         raise discord.ext.commands.CommandError('This command may only be used in a channel.')
     return True
 
+def check_guild_admin(ctx):
+    if not ctx.guild:
+        raise discord.ext.commands.CommandError('This command may only be used in a channel.')
+    elif ctx.author.id == int(os.environ['DISCORD_SUPER_ADMIN']):
+        return True
+    elif ctx.author.guild_permissions.administrator:
+        return True
+    else:
+        role_id = int(get_setting(ctx.guild.id, 'admin_role', '0'))
+        for role in ctx.author.roles:
+            print(role)
+            if role.id == role_id:
+                return True
+        if role_id == 0:
+            raise discord.ext.commands.CommandError('This command may only be used by a server admin.')
+        else:
+            role = discord.utils.get(ctx.guild.roles, id=role_id)
+            raise discord.ext.commands.CommandError('This command may only be used by ' + role.name)
+
+def check_guild_submitter(ctx):
+    if not ctx.guild:
+        raise discord.ext.commands.CommandError('This command may only be used in a channel.')
+    elif ctx.author.id == int(os.environ['DISCORD_SUPER_ADMIN']):
+        return True
+    elif ctx.author.guild_permissions.administrator:
+        return True
+    else:
+        submitter_role_id = int(get_setting(ctx.guild.id, 'submitter_role', '0'))
+        submitter_role = discord.utils.get(ctx.guild.roles, id=submitter_role_id)
+        if not submitter_role:
+            submitter_role = ctx.guild.default_role
+        for role in ctx.author.roles:
+            print(role)
+            if role.id == submitter_role.id:
+                return True
+        raise discord.ext.commands.CommandError('This command may only be used by ' + submitter_role.name)
+
 def check_super_admin(ctx):
     return ctx.author.id == int(os.environ['DISCORD_SUPER_ADMIN'])
 
@@ -41,8 +78,9 @@ async def on_command_error(ctx, error):
     await ctx.send(str(error))
 
 @bot.command()
-@discord.ext.commands.check(check_guild)
+@discord.ext.commands.check(check_guild_admin)
 async def settings(ctx):
+    """Show current settings"""
     em = discord.Embed(title='Settings')
     em.set_author(name=bot.user.name, icon_url=bot.user.avatar_url)
     em.add_field(name='Mode', value=get_setting(ctx.guild.id, 'mode', 'Classic'))
@@ -57,11 +95,24 @@ async def settings(ctx):
         else:
             emoji = '🐸'
     em.add_field(name='Emoji', value=emoji)
+    admin_role_id = int(get_setting(ctx.guild.id, 'admin_role', '0'))
+    admin_role = discord.utils.get(ctx.guild.roles, id=admin_role_id)
+    if admin_role:
+        admin_role_name = admin_role.name
+    else:
+        admin_role_name = 'admins only'
+    em.add_field(name='Admin Role', value=admin_role_name)
+    submitter_role_id = int(get_setting(ctx.guild.id, 'submitter_role', '0'))
+    submitter_role = discord.utils.get(ctx.guild.roles, id=submitter_role_id)
+    if not submitter_role:
+        submitter_role = ctx.guild.default_role
+    em.add_field(name='Submitter Role', value=submitter_role.name)
     await ctx.send(embed=em)
 
 @bot.command()
-@discord.ext.commands.check(check_guild)
+@discord.ext.commands.check(check_guild_admin)
 async def schedule(ctx, time: str, timezone: str = None):
+    """Set posting schedule and timezone"""
     if timezone:
         tz = dateutil.tz.gettz(timezone)
         if not tz:
@@ -81,14 +132,16 @@ async def schedule_error(ctx, error):
     await ctx.send('Usage: schedule HH:MM [timezone]')
 
 @bot.command()
-@discord.ext.commands.check(check_guild)
+@discord.ext.commands.check(check_guild_admin)
 async def channel(ctx, channel: discord.TextChannel):
+    """Set channel to post in"""
     set_setting(ctx.guild.id, 'channel', channel.name)
     await ctx.send('Channel set to ' + channel.mention)
 
 @bot.command()
-@discord.ext.commands.check(check_guild)
+@discord.ext.commands.check(check_guild_admin)
 async def emoji(ctx, emoji: Union[discord.Emoji, str]):
+    """Set the Wednesday emoji"""
     print(emoji)
     if isinstance(emoji, discord.Emoji):
         set_setting(ctx.guild.id, 'emoji', emoji.name)
@@ -97,8 +150,9 @@ async def emoji(ctx, emoji: Union[discord.Emoji, str]):
     await ctx.send('Emoji set to ' + str(emoji))
 
 @bot.command()
-@discord.ext.commands.check(check_guild)
+@discord.ext.commands.check(check_guild_admin)
 async def mode(ctx, mode: str):
+    """Set classic, variety, or text mode"""
     print(mode)
     if mode.lower() == 'classic':
         set_setting(ctx.guild.id, 'mode', 'Classic')
@@ -113,12 +167,31 @@ async def mode(ctx, mode: str):
         await ctx.send('Unknown mode.\nUsage: mode classic|variety|text')
 
 @bot.command()
+@discord.ext.commands.check(check_guild_admin)
+async def admin_role(ctx, role: discord.Role):
+    """Set admin role"""
+    set_setting(ctx.guild.id, 'admin_role', role.id)
+    await ctx.send('Admin role set to ' + role.name)
+
+@bot.command()
+@discord.ext.commands.check(check_guild_admin)
+async def submitter_role(ctx, role: discord.Role):
+    """Set submitter role"""
+    set_setting(ctx.guild.id, 'submitter_role', role.id)
+    await ctx.send('Submitter role set to ' + role.name)
+
+@bot.command()
+async def invite(ctx):
+    """Get an invite link to add the bot to your server"""
+    await ctx.send(generate_invite_link())
+
+@bot.command()
 @discord.ext.commands.check(check_super_admin)
 async def add_global(ctx, url):
     add_global_meme(url, approved=True, submitter=ctx.author.id)
 
 @bot.command()
-@discord.ext.commands.check(check_guild)
+@discord.ext.commands.check(check_guild_admin)
 async def test_post(ctx):
     chan_name = get_setting(ctx.guild.id, 'channel')
     if not chan_name:
