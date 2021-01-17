@@ -63,6 +63,7 @@ async def on_ready():
     bot.scheduler = Scheduler()
     for guild in bot.guilds:
         reschedule(guild.id)
+        await create_wednesday_emoji(guild)
         #bot.scheduler.schedule(datetime.datetime.now(tz=datetime.timezone.utc), do_post, guild.id)
     bot.loop.create_task(bot.scheduler.run())
 
@@ -273,3 +274,11 @@ def generate_invite_link():
     perms.send_messages = True
     perms.manage_messages = True
     return discord.utils.oauth_url(os.environ['DISCORD_CLIENT_ID'], perms)
+
+async def create_wednesday_emoji(guild):
+    emoji = discord.utils.get(guild.emojis, name='wednesday')
+    if emoji:
+        return
+    with open(os.path.join(os.path.dirname(__file__), 'wednesday.png'), 'rb') as f:
+        image = f.read()
+    await guild.create_custom_emoji(name='wednesday', image=image)
