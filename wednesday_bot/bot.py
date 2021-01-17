@@ -36,6 +36,15 @@ def check_guild_admin(ctx):
             role = discord.utils.get(ctx.guild.roles, id=role_id)
             raise discord.ext.commands.CommandError('This command may only be used by ' + role.name)
 
+def check_guild_permissions(ctx):
+    if not ctx.guild:
+        raise discord.ext.commands.CommandError('This command may only be used in a channel.')
+    else:
+        perms = ctx.guild.me.guild_permissions
+        if perms.manage_messages:
+            return True
+        raise discord.ext.commands.CommandError('The bot needs the "manage messages" permission for this command.')
+
 def check_guild_submitter(ctx):
     if not ctx.guild:
         raise discord.ext.commands.CommandError('This command may only be used in a channel.')
@@ -63,13 +72,20 @@ async def on_ready():
     bot.scheduler = Scheduler()
     for guild in bot.guilds:
         reschedule(guild.id)
-        await create_wednesday_emoji(guild)
-        #bot.scheduler.schedule(datetime.datetime.now(tz=datetime.timezone.utc), do_post, guild.id)
+        try:
+            await create_wednesday_emoji(guild)
+        except discord.Forbidden:
+            pass
     bot.loop.create_task(bot.scheduler.run())
 
 @bot.event
 async def on_guild_join(guild):
     print(guild)
+    reschedule(guild.id)
+    try:
+        await create_wednesday_emoji(guild)
+    except discord.Forbidden:
+        pass
 
 @bot.event
 async def on_guild_remove(guild):
@@ -83,9 +99,12 @@ async def on_command_error(ctx, error):
 @discord.ext.commands.check(check_guild_admin)
 async def settings(ctx):
     """Show current settings"""
+    if not ctx.guild.me.guild_permissions.embed_links:
+        await ctx.send('This bot needs the "embed links" permission.')
+        return
     em = discord.Embed(title='Settings')
     em.set_author(name=bot.user.name, icon_url=bot.user.avatar_url)
-    em.add_field(name='Mode', value=get_setting(ctx.guild.id, 'mode', 'Classic'))
+    em.add_field(name='Mode', value=get_effective_mode(ctx.guild.id))
     em.add_field(name='Channel', value=get_setting(ctx.guild.id, 'channel', 'Not set'))
     ts = get_schedule(ctx.guild.id)
     em.add_field(name='Schedule', value=ts.strftime('%I:%M %p %Z'))
@@ -155,6 +174,9 @@ async def emoji(ctx, emoji: Union[discord.Emoji, str]):
 @discord.ext.commands.check(check_guild_admin)
 async def mode(ctx, mode: str):
     """Set classic, variety, or text mode"""
+    if not ctx.guild.me.guild_permissions.embed_links:
+        await ctx.send('The bot needs the "embed links" permission to use modes besides text.')
+        return
     print(mode)
     if mode.lower() == 'classic':
         set_setting(ctx.guild.id, 'mode', 'Classic')
@@ -188,6 +210,7 @@ async def invite(ctx):
     await ctx.send(generate_invite_link())
 
 @bot.command()
+@discord.ext.commands.check(check_guild_permissions)
 @discord.ext.commands.check(check_guild_submitter)
 async def submit(ctx, url):
     """Submit a Wednesday meme"""
@@ -239,15 +262,21 @@ async def do_post(guild_id):
         print('Channel ' + chan_name + ' not found.')
         reschedule(guild_id)
         return
-    mode = get_setting(guild_id, 'mode', 'Classic')
+    mode = get_effective_mode(guild_id)
     if mode == 'Classic':
         embed = discord.Embed()
         embed.set_image(url='https://i.kym-cdn.com/photos/images/original/001/091/264/665.jpg')
         msg = await channel.send(embed=embed)
-        await msg.add_reaction(emoji)
+        try:
+            await msg.add_reaction(emoji)
+        except discord.Forbidden:
+            pass
     elif mode == 'Text':
         msg = await channel.send(str(emoji) + ' It is Wednesday, my dudes.')
-        await msg.add_reaction(emoji)
+        try:
+            await msg.add_reaction(emoji)
+        except discord.Forbidden:
+            pass
     elif mode == 'Variety':
         url = get_guild_meme(guild_id)
         if not url:
@@ -255,7 +284,10 @@ async def do_post(guild_id):
         embed = discord.Embed()
         embed.set_image(url=url)
         msg = await channel.send(embed=embed)
-        await msg.add_reaction(emoji)
+        try:
+            await msg.add_reaction(emoji)
+        except discord.Forbidden:
+            pass
         mark_guild_meme(guild_id, url)
     reschedule(guild_id)
 
@@ -268,7 +300,6 @@ def reschedule(guild_id):
 def generate_invite_link():
     perms = discord.Permissions()
     perms.add_reactions = True
-    perms.attach_files = True
     perms.embed_links = True
     perms.manage_emojis = True
     perms.send_messages = True
@@ -282,3 +313,10 @@ async def create_wednesday_emoji(guild):
     with open(os.path.join(os.path.dirname(__file__), 'wednesday.png'), 'rb') as f:
         image = f.read()
     await guild.create_custom_emoji(name='wednesday', image=image)
+
+def get_effective_mode(guild_id):
+    guild = discord.utils.get(bot.guilds, id=guild_id)
+    if not guild.me.guild_permissions.embed_links:
+        return 'Text'
+    else:
+        return get_setting(guild_id, 'mode', 'Classic')
