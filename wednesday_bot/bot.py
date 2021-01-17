@@ -3,9 +3,10 @@ import dateutil.tz
 import discord
 import discord.ext.commands
 import os
+from sqlite3 import IntegrityError
 from typing import Union
 from .scheduler import Scheduler
-from .database import get_setting, set_setting, get_schedule, get_guild_meme, mark_guild_meme, add_global_meme
+from .database import get_setting, set_setting, get_schedule, add_guild_meme, get_guild_meme, mark_guild_meme, add_global_meme
 
 
 bot = discord.ext.commands.Bot(command_prefix=discord.ext.commands.when_mentioned)
@@ -186,9 +187,24 @@ async def invite(ctx):
     await ctx.send(generate_invite_link())
 
 @bot.command()
+@discord.ext.commands.check(check_guild_submitter)
+async def submit(ctx, url):
+    """Submit a Wednesday meme"""
+    await ctx.message.delete()
+    try:
+        add_guild_meme(ctx.guild.id, url, ctx.author.id)
+        await ctx.send('*' + ctx.author.name + ' submitted a meme.*')
+    except IntegrityError:
+        await ctx.send(ctx.author.mention + ' I already have that meme.')
+
+@bot.command()
 @discord.ext.commands.check(check_super_admin)
 async def add_global(ctx, url):
-    add_global_meme(url, approved=True, submitter=ctx.author.id)
+    try:
+        add_global_meme(url, approved=True, submitter=ctx.author.id)
+        await ctx.send('Accepted')
+    except IntegrityError:
+        await ctx.send('I already have that meme.')
 
 @bot.command()
 @discord.ext.commands.check(check_guild_admin)
@@ -255,4 +271,5 @@ def generate_invite_link():
     perms.embed_links = True
     perms.manage_emojis = True
     perms.send_messages = True
+    perms.manage_messages = True
     return discord.utils.oauth_url(os.environ['DISCORD_CLIENT_ID'], perms)
