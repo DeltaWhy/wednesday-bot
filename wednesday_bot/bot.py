@@ -78,8 +78,8 @@ async def on_ready():
         reschedule(guild.id, resume_time)
         try:
             await create_wednesday_emoji(guild)
-        except discord.Forbidden:
-            pass
+        except:
+            traceback.print_exc()
     bot.loop.create_task(bot.scheduler.run())
 
 @bot.event
