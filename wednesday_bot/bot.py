@@ -3,6 +3,7 @@ import dateutil.tz
 import discord
 import discord.ext.commands
 import os
+import traceback
 from sqlite3 import IntegrityError
 from typing import Union
 from .scheduler import Scheduler
