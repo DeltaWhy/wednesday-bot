@@ -3,6 +3,7 @@ import datetime
 from dataclasses import dataclass, field
 from typing import Any, List, Dict
 import heapq
+import traceback
 
 
 class Scheduler:
@@ -18,10 +19,14 @@ class Scheduler:
     async def tick(self):
         print(datetime.datetime.now(tz=datetime.timezone.utc))
         while len(self.heap) > 0 and self.heap[0].time <= datetime.datetime.now(tz=datetime.timezone.utc):
-            task = heapq.heappop(self.heap)
-            res = task.fn(*task.args, **task.kwargs)
-            if asyncio.iscoroutine(res):
-                await res
+            try:
+                task = heapq.heappop(self.heap)
+                res = task.fn(*task.args, **task.kwargs)
+                if asyncio.iscoroutine(res):
+                    await res
+            except:
+                traceback.print_exc()
+
 
 
     async def run(self):

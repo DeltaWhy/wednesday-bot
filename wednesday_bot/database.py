@@ -80,7 +80,7 @@ def set_setting(guild_id: int, key: str, value: str):
     cur = db.execute('INSERT OR REPLACE INTO guild_settings VALUES (?, ?, ?)', (guild_id, key, value))
     db.commit()
 
-def get_schedule(guild_id: int) -> datetime.datetime:
+def get_schedule(guild_id: int, from_dt = None) -> datetime.datetime:
     tz = dateutil.tz.gettz(get_setting(guild_id, 'timezone', 'America/New_York'))
     if not tz:
         tz = dateutil.tz.gettz('America/New_York')
@@ -88,7 +88,11 @@ def get_schedule(guild_id: int) -> datetime.datetime:
     ts = datetime.datetime.now(tz=tz).replace(hour=time.hour, minute=time.minute)
     days_until_wednesday = (2 - ts.weekday()) % 7
     ts += datetime.timedelta(days=days_until_wednesday)
-    if ts < datetime.datetime.now(tz=tz):
+    if not from_dt:
+        from_dt = datetime.datetime.now(tz=tz)
+    while ts > from_dt:
+        ts -= datetime.timedelta(days=7)
+    if ts < from_dt:
         ts += datetime.timedelta(days=7)
     return ts
 

@@ -70,8 +70,12 @@ def check_super_admin(ctx):
 async def on_ready():
     print('Invite: ', generate_invite_link())
     bot.scheduler = Scheduler()
+    if 'RESUME_TIME' in os.environ:
+        resume_time = datetime.datetime.fromisoformat(os.environ['RESUME_TIME'])
+    else:
+        resume_time = None
     for guild in bot.guilds:
-        reschedule(guild.id)
+        reschedule(guild.id, resume_time)
         try:
             await create_wednesday_emoji(guild)
         except discord.Forbidden:
@@ -291,11 +295,11 @@ async def do_post(guild_id):
         mark_guild_meme(guild_id, url)
     reschedule(guild_id)
 
-def reschedule(guild_id):
+def reschedule(guild_id, from_dt = None):
     print(bot.scheduler.heap)
     bot.scheduler.heap = [x for x in bot.scheduler.heap if x.args != (guild_id,)]
     print(bot.scheduler.heap)
-    bot.scheduler.schedule(get_schedule(guild_id), do_post, guild_id)
+    bot.scheduler.schedule(get_schedule(guild_id, from_dt), do_post, guild_id)
 
 def generate_invite_link():
     perms = discord.Permissions()
