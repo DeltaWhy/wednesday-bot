@@ -3,6 +3,7 @@ import datetime
 from dataclasses import dataclass, field
 from typing import Any, List, Dict
 import heapq
+import logging
 import traceback
 
 
@@ -13,11 +14,11 @@ class Scheduler:
 
     def schedule(self, time, fn, *args, **kwargs):
         task = ScheduledTask(time, fn, args, kwargs)
-        print(task)
+        logging.debug(task)
         heapq.heappush(self.heap, task)
 
     async def tick(self):
-        print(datetime.datetime.now(tz=datetime.timezone.utc))
+        logging.debug(datetime.datetime.now(tz=datetime.timezone.utc))
         while len(self.heap) > 0 and self.heap[0].time <= datetime.datetime.now(tz=datetime.timezone.utc):
             try:
                 task = heapq.heappop(self.heap)

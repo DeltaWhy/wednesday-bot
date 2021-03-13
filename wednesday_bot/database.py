@@ -1,8 +1,10 @@
 import datetime
 import dateutil.tz
+import logging
+import json
 import sqlite3
 import os
-from typing import Optional
+from typing import Optional, Dict, Any
 
 
 DB_FILE = os.environ['DB_FILE']
@@ -63,6 +65,17 @@ PRAGMA user_version=3;
         """)
         db.commit()
         user_version = 3
+    if user_version < 4:
+        db.executescript("""
+CREATE TABLE event_log (
+    timestamp DATETIME,
+    event TEXT NOT NULL,
+    payload JSON
+);
+PRAGMA user_version=4;
+        """)
+        db.commit()
+        user_version = 4
 
 
 _update_schema(db)
@@ -125,4 +138,11 @@ def add_global_meme(url: str, approved: Optional[bool] = False, submitter: Optio
     if approved is None:
         approved = 0
     cur = db.execute('INSERT INTO global_memes (url, approved, submitter) VALUES (?, ?, ?)', (url, approved, submitter))
+    db.commit()
+
+def log_event(event: str, payload: Optional[Dict[str, Any]] = None):
+    if not payload:
+        payload = dict()
+    logging.info("%s %s", event, json.dumps(payload))
+    cur = db.execute("INSERT INTO event_log (timestamp, event, payload) VALUES (datetime('now'), ?, ?)", (event, json.dumps(payload)))
     db.commit()
